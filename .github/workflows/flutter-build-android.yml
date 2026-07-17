@@ -26,6 +26,10 @@ env:
   VERSION: "1.4.9"
   NDK_VERSION: "r28c"
   ANDROID_SIGNING_KEY: "${{ secrets.ANDROID_SIGNING_KEY }}"
+  # 自定义服务器：在仓库 secrets 中配置以下值即可硬编码进客户端
+  RS_PUB_KEY: "${{ secrets.RS_PUB_KEY }}"
+  RENDEZVOUS_SERVER: "${{ secrets.RENDEZVOUS_SERVER }}"
+  API_SERVER: "${{ secrets.API_SERVER }}"
   UPLOAD_ARTIFACT: "true"
   TAG_NAME: "${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'android-latest' }}"
 
