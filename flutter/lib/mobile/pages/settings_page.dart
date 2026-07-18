@@ -100,6 +100,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   var _disableUdp = false;
   var _enableIpv6Punch = false;
   var _isUsingPublicServer = false;
+  var _currentServerDesc = "";
   var _allowAskForNoteAtEndOfConnection = false;
   var _preventSleepWhileConnected = true;
 
@@ -223,10 +224,27 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         _isUsingPublicServer = isUsingPublicServer;
       }
 
+      final currentServerDesc = await _getCurrentServerDesc();
+      if (_currentServerDesc != currentServerDesc) {
+        update = true;
+        _currentServerDesc = currentServerDesc;
+      }
+
       if (update) {
         setState(() {});
       }
     });
+  }
+
+  Future<String> _getCurrentServerDesc() async {
+    try {
+      final info = jsonDecode(await bind.mainGetCurrentServerInfo());
+      final server = info['rendezvous_server'] ?? '';
+      final source = serverSourceLabel(info['source'] ?? '');
+      return server.isEmpty ? '' : '$server ($source)';
+    } catch (_) {
+      return '';
+    }
   }
 
   @override
@@ -719,8 +737,18 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 onPressed: (context) {
                   showServerSettings(gFFI.dialogManager, (callback) async {
                     _isUsingPublicServer = await bind.mainIsUsingPublicServer();
+                    _currentServerDesc = await _getCurrentServerDesc();
                     setState(callback);
                   });
+                }),
+          if (!disabledSettings && !_hideNetwork && !_hideServer)
+            SettingsTile(
+                title: Text(translate('Current Server')),
+                leading: Icon(Icons.dns),
+                description:
+                    _currentServerDesc.isEmpty ? null : Text(_currentServerDesc),
+                onPressed: (context) {
+                  showCurrentServerInfoDialog(gFFI.dialogManager);
                 }),
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
@@ -1060,6 +1088,99 @@ void showLanguageSettings(OverlayDialogManager dialogManager) async {
   } catch (e) {
     //
   }
+}
+
+String serverSourceLabel(String source) {
+  switch (source) {
+    case 'custom':
+      return translate('Manually Configured');
+    case 'public':
+      return translate('Public Server');
+    default:
+      return translate('Built-in Server');
+  }
+}
+
+void showCurrentServerInfoDialog(OverlayDialogManager dialogManager) async {
+  Map<String, dynamic> info = {};
+  try {
+    info = json.decode(await bind.mainGetCurrentServerInfo());
+  } catch (_) {}
+  final String idServer = info['rendezvous_server'] ?? '';
+  final String source = info['source'] ?? '';
+  final String relayServer = info['relay_server'] ?? '';
+  final String apiServer = info['api_server'] ?? '';
+  final String key = info['key'] ?? '';
+  // 0: not tested yet, -2: testing, -1: failed, >0: latency in ms
+  var latency = 0;
+
+  dialogManager.show((setState, close, context) {
+    buildRow(String label, String value) => Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                  width: 100,
+                  child: Text(translate(label),
+                      style: TextStyle(fontWeight: FontWeight.w500))),
+              Expanded(child: SelectableText(value)),
+            ],
+          ),
+        );
+
+    onTest() async {
+      setState(() => latency = -2);
+      final ms = await bind.mainTestServerLatency(host: idServer);
+      setState(() => latency = ms);
+    }
+
+    Widget latencyWidget;
+    if (latency == -2) {
+      latencyWidget = SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2));
+    } else if (latency == -1) {
+      latencyWidget =
+          Text(translate('Test Failed'), style: TextStyle(color: Colors.red));
+    } else if (latency > 0) {
+      latencyWidget =
+          Text('$latency ms', style: TextStyle(color: Colors.green));
+    } else {
+      latencyWidget = SizedBox.shrink();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Current Server')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildRow('ID Server', idServer),
+          buildRow('Source', serverSourceLabel(source)),
+          buildRow(
+              'Relay Server',
+              relayServer.isEmpty
+                  ? translate('Assigned by ID Server')
+                  : relayServer),
+          buildRow('API Server', apiServer),
+          buildRow('Key', key),
+          Divider(color: MyTheme.border),
+          Row(
+            children: [
+              Expanded(child: latencyWidget),
+              TextButton(
+                  onPressed: latency == -2 ? null : onTest,
+                  child: Text(translate('Test Latency'))),
+            ],
+          ),
+        ],
+      ),
+      actions: [dialogButton('OK', onPressed: close)],
+      onCancel: close,
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
 }
 
 void showThemeSettings(OverlayDialogManager dialogManager) async {

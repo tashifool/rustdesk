@@ -1147,6 +1147,14 @@ pub fn main_is_using_public_server() -> bool {
     crate::using_public_server()
 }
 
+pub fn main_get_current_server_info() -> String {
+    crate::common::get_current_server_info()
+}
+
+pub fn main_test_server_latency(host: String) -> i64 {
+    crate::common::test_server_latency(host)
+}
+
 pub fn main_discover() {
     discover();
 }

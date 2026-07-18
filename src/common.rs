@@ -2034,6 +2034,42 @@ pub fn using_public_server() -> bool {
     crate::get_custom_rendezvous_server(get_option("custom-rendezvous-server")).is_empty()
 }
 
+pub fn get_current_server_info() -> String {
+    let custom = get_option("custom-rendezvous-server");
+    let rendezvous_server = Config::get_rendezvous_server();
+    let source = if !custom.is_empty() {
+        "custom"
+    } else if rendezvous_server.contains("rustdesk.com") {
+        "public"
+    } else {
+        "builtin"
+    };
+    let mut key = get_option("key");
+    if key.is_empty() {
+        key = config::RS_PUB_KEY.to_owned();
+    }
+    json!({
+        "rendezvous_server": rendezvous_server,
+        "source": source,
+        "relay_server": get_option("relay-server"),
+        "api_server": crate::ui_interface::get_api_server(),
+        "key": key,
+    })
+    .to_string()
+}
+
+// Blocking TCP connectivity test against a rendezvous server, returns latency
+// in milliseconds, or -1 on failure. Runs on the bridge worker thread pool, so
+// spinning up a local runtime here is safe.
+#[tokio::main(flavor = "current_thread")]
+pub async fn test_server_latency(host: String) -> i64 {
+    let tm = std::time::Instant::now();
+    match socket_client::connect_tcp(crate::check_port(&host, RENDEZVOUS_PORT), 5_000).await {
+        Ok(_) => tm.elapsed().as_millis() as i64,
+        Err(_) => -1,
+    }
+}
+
 pub struct ThrottledInterval {
     interval: Interval,
     next_tick: Instant,
