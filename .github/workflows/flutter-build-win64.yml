@@ -74,6 +74,20 @@ jobs:
         with:
           submodules: recursive
 
+      # 1.4.9 已移除 option_env! 编译期注入，唯一有效方式是直接替换 hbb_common 中的硬编码常量
+      - name: Hardcode custom server info
+        shell: bash
+        run: |
+          if [ -n "$RENDEZVOUS_SERVER" ]; then
+            sed -i "s|rs-ny.rustdesk.com|$RENDEZVOUS_SERVER|g" libs/hbb_common/src/config.rs
+            echo "rendezvous server hardcoded"
+          fi
+          if [ -n "$RS_PUB_KEY" ]; then
+            sed -i "s|OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=|$RS_PUB_KEY|g" libs/hbb_common/src/config.rs
+            echo "rs pub key hardcoded"
+          fi
+          grep -n "RENDEZVOUS_SERVERS\|RS_PUB_KEY" libs/hbb_common/src/config.rs | head -n 4
+
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
